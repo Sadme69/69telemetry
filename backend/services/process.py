@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import threading
 import traceback
 
 from services import storage
@@ -17,6 +19,21 @@ logger = logging.getLogger(__name__)
 
 # Locks to prevent duplicate processing of the same session
 _locks: dict[str, asyncio.Lock] = {}
+
+# Global processing gate: only one session may be *processed* at a time.
+#
+# Processing a session loads a full FastF1 session (telemetry + laps + weather +
+# messages — hundreds of MB) and then builds the replay frame list. Two of those
+# at once would blow the 512MB budget. It would ALSO thrash the single-slot
+# session cache: with two jobs running, each one evicts the other's loaded
+# session and is then forced to reload it on its next extraction step (and again
+# on every per-lap telemetry call), churning near-endlessly.
+#
+# Serializing processing keeps memory bounded and eliminates the thrash. Bump
+# PROCESS_CONCURRENCY (and _SESSION_CACHE_MAX in f1_data.py) only on a bigger
+# instance with RAM to spare.
+_PROCESS_CONCURRENCY = max(1, int(os.environ.get("PROCESS_CONCURRENCY", "1")))
+_process_gate = threading.BoundedSemaphore(_PROCESS_CONCURRENCY)
 
 
 def process_session_sync(
@@ -54,6 +71,13 @@ def process_session_sync(
         logger.info(f"[{prefix}] {msg}")
         if on_status:
             on_status(msg)
+
+    # Serialize heavy processing. If another session is currently being processed,
+    # wait for it to finish instead of running concurrently (which would thrash
+    # the session cache and risk OOM).
+    if not _process_gate.acquire(blocking=False):
+        status("Waiting for another session to finish processing...")
+        _process_gate.acquire()
 
     try:
         status("Loading session data from F1 API...")
@@ -147,6 +171,7 @@ def process_session_sync(
         except Exception:
             pass
         release_memory()
+        _process_gate.release()
 
 
 async def ensure_session_data(

@@ -14,6 +14,17 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# FastF1 logs every cached-data read at INFO and also attaches its own handler, so
+# each line ends up printed twice and floods the log during processing. Quiet it to
+# WARNING by default (our own services.* progress logs are unaffected). Override
+# with FASTF1_LOG_LEVEL=INFO if you want FastF1's chatter back.
+try:
+    fastf1.set_log_level(os.environ.get("FASTF1_LOG_LEVEL", "WARNING"))
+except Exception:
+    logging.getLogger("fastf1").setLevel(
+        getattr(logging, os.environ.get("FASTF1_LOG_LEVEL", "WARNING").upper(), logging.WARNING)
+    )
+
 CACHE_DIR = os.environ.get("FASTF1_CACHE_DIR", os.path.join(os.path.dirname(__file__), "..", ".fastf1-cache"))
 
 # Enable cache on import
