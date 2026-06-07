@@ -105,6 +105,35 @@ PYTHONDONTWRITEBYTECODE=1
 uvicorn now runs with `--workers 1` (each worker is a full copy of the process)
 and `--no-access-log`.
 
+### 7. Serialized processing — one session at a time
+The single-slot session cache (item 1) thrashes if two sessions are *processed*
+concurrently: each job evicts the other's loaded session and is then forced to
+reload it on every extraction step (and on every per-lap telemetry call), churning
+near-endlessly. This shows up in the logs as the cache flipping back and forth
+between two keys ("Evicted … to make room for A" / "Loading … B" / "… make room
+for B" / "Loading … A").
+
+`services/process.py` now guards processing with a global gate
+(`threading.BoundedSemaphore`, size = `PROCESS_CONCURRENCY`, default **1**). Only
+one session is processed at a time; others wait (the WebSocket shows "Waiting for
+another session to finish processing…"). This is correct for a 512 MB box anyway —
+two sessions' peak memory won't fit simultaneously. Raise `PROCESS_CONCURRENCY`
+(and `_SESSION_CACHE_MAX` in `f1_data.py`) only on a larger instance.
+
+### 8. Quieter FastF1 logs
+FastF1 logged every cached-data read at INFO *and* attached its own handler, so
+each line printed twice and flooded the logs during processing. It's now set to
+WARNING by default (override with `FASTF1_LOG_LEVEL=INFO`). Your own `services.*`
+progress logs are unaffected.
+
+## Environment variables added
+| var | default | purpose |
+|---|---|---|
+| `PROCESS_CONCURRENCY` | `1` | how many sessions may process at once (keep at 1 on 512 MB) |
+| `FASTF1_LOG_LEVEL` | `WARNING` | verbosity of FastF1's own logging |
+
+(Plus the existing `AUTO_PRECOMPUTE`, `STORAGE_MODE`, `DATA_DIR`, `R2_*`.)
+
 ## Behaviour is unchanged
 No API shapes, JSON output, or replay logic were altered — only when things load,
 how long they're kept, and when memory is returned to the OS. `services/r2_storage.py`
