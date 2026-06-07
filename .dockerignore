@@ -1,0 +1,14 @@
+.env
+.git
+.github
+docs
+*.md
+backend/venv
+backend/__pycache__
+backend/*.pyc
+backend/data/sessions
+backend/data/fastf1-cache
+backend/data/pit_loss_raw.json
+frontend/node_modules
+frontend/.next
+frontend/out

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+backend/venv/
+*.egg-info/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Data/cache
+.fastf1-cache/
+/data/
+backend/data/sessions/
+backend/data/live_test/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+
+# Planning & internal docs
+/docs/
+.next/
