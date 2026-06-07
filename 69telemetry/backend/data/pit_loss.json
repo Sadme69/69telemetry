@@ -1,0 +1,229 @@
+{
+  "year": 2025,
+  "method": "PitInTime/PitOutTime (precise)",
+  "sc_vsc_factor": 0.73,
+  "global_averages": {
+    "green": 23.5,
+    "sc": 17.2,
+    "vsc": 17.2,
+    "green_count": 544
+  },
+  "circuits": {
+    "Abu Dhabi Grand Prix": {
+      "event_name": "Abu Dhabi Grand Prix",
+      "circuit": "Yas Island",
+      "round": 24,
+      "pit_loss_green": 21.8,
+      "pit_loss_green_count": 27,
+      "pit_loss_sc": 15.9,
+      "pit_loss_vsc": 15.9
+    },
+    "Australian Grand Prix": {
+      "event_name": "Australian Grand Prix",
+      "circuit": "Melbourne",
+      "round": 1,
+      "pit_loss_green": 19.7,
+      "pit_loss_green_count": 2,
+      "pit_loss_sc": 14.4,
+      "pit_loss_vsc": 14.4
+    },
+    "Austrian Grand Prix": {
+      "event_name": "Austrian Grand Prix",
+      "circuit": "Spielberg",
+      "round": 11,
+      "pit_loss_green": 21.6,
+      "pit_loss_green_count": 29,
+      "pit_loss_sc": 15.8,
+      "pit_loss_vsc": 15.8
+    },
+    "Azerbaijan Grand Prix": {
+      "event_name": "Azerbaijan Grand Prix",
+      "circuit": "Baku",
+      "round": 17,
+      "pit_loss_green": 20.6,
+      "pit_loss_green_count": 16,
+      "pit_loss_sc": 15.0,
+      "pit_loss_vsc": 15.0
+    },
+    "Bahrain Grand Prix": {
+      "event_name": "Bahrain Grand Prix",
+      "circuit": "Sakhir",
+      "round": 4,
+      "pit_loss_green": 24.9,
+      "pit_loss_green_count": 28,
+      "pit_loss_sc": 18.2,
+      "pit_loss_vsc": 18.2
+    },
+    "Belgian Grand Prix": {
+      "event_name": "Belgian Grand Prix",
+      "circuit": "Spa-Francorchamps",
+      "round": 13,
+      "pit_loss_green": 23.6,
+      "pit_loss_green_count": 26,
+      "pit_loss_sc": 17.2,
+      "pit_loss_vsc": 17.2
+    },
+    "British Grand Prix": {
+      "event_name": "British Grand Prix",
+      "circuit": "Silverstone",
+      "round": 12,
+      "pit_loss_green": 28.9,
+      "pit_loss_green_count": 26,
+      "pit_loss_sc": 21.1,
+      "pit_loss_vsc": 21.1
+    },
+    "Canadian Grand Prix": {
+      "event_name": "Canadian Grand Prix",
+      "circuit": "Montr\u00e9al",
+      "round": 10,
+      "pit_loss_green": 23.6,
+      "pit_loss_green_count": 29,
+      "pit_loss_sc": 17.2,
+      "pit_loss_vsc": 17.2
+    },
+    "Chinese Grand Prix": {
+      "event_name": "Chinese Grand Prix",
+      "circuit": "Shanghai",
+      "round": 2,
+      "pit_loss_green": 22.7,
+      "pit_loss_green_count": 23,
+      "pit_loss_sc": 16.6,
+      "pit_loss_vsc": 16.6
+    },
+    "Dutch Grand Prix": {
+      "event_name": "Dutch Grand Prix",
+      "circuit": "Zandvoort",
+      "round": 15,
+      "pit_loss_green": 17.7,
+      "pit_loss_green_count": 10,
+      "pit_loss_sc": 12.9,
+      "pit_loss_vsc": 12.9
+    },
+    "Emilia Romagna Grand Prix": {
+      "event_name": "Emilia Romagna Grand Prix",
+      "circuit": "Imola",
+      "round": 7,
+      "pit_loss_green": 30.2,
+      "pit_loss_green_count": 11,
+      "pit_loss_sc": 22.0,
+      "pit_loss_vsc": 22.0
+    },
+    "Hungarian Grand Prix": {
+      "event_name": "Hungarian Grand Prix",
+      "circuit": "Budapest",
+      "round": 14,
+      "pit_loss_green": 21.6,
+      "pit_loss_green_count": 29,
+      "pit_loss_sc": 15.8,
+      "pit_loss_vsc": 15.8
+    },
+    "Italian Grand Prix": {
+      "event_name": "Italian Grand Prix",
+      "circuit": "Monza",
+      "round": 16,
+      "pit_loss_green": 25.0,
+      "pit_loss_green_count": 18,
+      "pit_loss_sc": 18.2,
+      "pit_loss_vsc": 18.2
+    },
+    "Japanese Grand Prix": {
+      "event_name": "Japanese Grand Prix",
+      "circuit": "Suzuka",
+      "round": 3,
+      "pit_loss_green": 23.5,
+      "pit_loss_green_count": 21,
+      "pit_loss_sc": 17.2,
+      "pit_loss_vsc": 17.2
+    },
+    "Las Vegas Grand Prix": {
+      "event_name": "Las Vegas Grand Prix",
+      "circuit": "Las Vegas",
+      "round": 22,
+      "pit_loss_green": 21.6,
+      "pit_loss_green_count": 16,
+      "pit_loss_sc": 15.8,
+      "pit_loss_vsc": 15.8
+    },
+    "Mexico City Grand Prix": {
+      "event_name": "Mexico City Grand Prix",
+      "circuit": "Mexico City",
+      "round": 20,
+      "pit_loss_green": 22.7,
+      "pit_loss_green_count": 26,
+      "pit_loss_sc": 16.6,
+      "pit_loss_vsc": 16.6
+    },
+    "Miami Grand Prix": {
+      "event_name": "Miami Grand Prix",
+      "circuit": "Miami Gardens",
+      "round": 6,
+      "pit_loss_green": 22.4,
+      "pit_loss_green_count": 10,
+      "pit_loss_sc": 16.4,
+      "pit_loss_vsc": 16.4
+    },
+    "Monaco Grand Prix": {
+      "event_name": "Monaco Grand Prix",
+      "circuit": "Monaco",
+      "round": 8,
+      "pit_loss_green": 24.1,
+      "pit_loss_green_count": 36,
+      "pit_loss_sc": 17.6,
+      "pit_loss_vsc": 17.6
+    },
+    "Qatar Grand Prix": {
+      "event_name": "Qatar Grand Prix",
+      "circuit": "Lusail",
+      "round": 23,
+      "pit_loss_green": 28.5,
+      "pit_loss_green_count": 22,
+      "pit_loss_sc": 20.8,
+      "pit_loss_vsc": 20.8
+    },
+    "Saudi Arabian Grand Prix": {
+      "event_name": "Saudi Arabian Grand Prix",
+      "circuit": "Jeddah",
+      "round": 5,
+      "pit_loss_green": 20.7,
+      "pit_loss_green_count": 16,
+      "pit_loss_sc": 15.1,
+      "pit_loss_vsc": 15.1
+    },
+    "Singapore Grand Prix": {
+      "event_name": "Singapore Grand Prix",
+      "circuit": "Marina Bay",
+      "round": 18,
+      "pit_loss_green": 24.1,
+      "pit_loss_green_count": 22,
+      "pit_loss_sc": 17.6,
+      "pit_loss_vsc": 17.6
+    },
+    "Spanish Grand Prix": {
+      "event_name": "Spanish Grand Prix",
+      "circuit": "Barcelona",
+      "round": 9,
+      "pit_loss_green": 22.1,
+      "pit_loss_green_count": 39,
+      "pit_loss_sc": 16.1,
+      "pit_loss_vsc": 16.1
+    },
+    "S\u00e3o Paulo Grand Prix": {
+      "event_name": "S\u00e3o Paulo Grand Prix",
+      "circuit": "S\u00e3o Paulo",
+      "round": 21,
+      "pit_loss_green": 23.5,
+      "pit_loss_green_count": 33,
+      "pit_loss_sc": 17.2,
+      "pit_loss_vsc": 17.2
+    },
+    "United States Grand Prix": {
+      "event_name": "United States Grand Prix",
+      "circuit": "Austin",
+      "round": 19,
+      "pit_loss_green": 23.9,
+      "pit_loss_green_count": 20,
+      "pit_loss_sc": 17.4,
+      "pit_loss_vsc": 17.4
+    }
+  }
+}
