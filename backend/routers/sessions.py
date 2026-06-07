@@ -115,13 +115,19 @@ async def get_session(
     round_num: int,
     type: str = Query("R", description="Session type: R, Q, S, FP1, FP2, FP3, SQ"),
 ):
+    # 1. Try to get full data from storage first
     data = get_json(f"sessions/{year}/{round_num}/{type}/info.json")
     if data is not None:
         return data
 
-    # Fast fallback: build minimal session info from schedule data.
-    # This avoids triggering slow FastF1 processing for live sessions
-    # that haven't been precomputed yet.
+    # 2. Trigger on-demand processing (this may take up to 60s)
+    available = await ensure_session_data(year, round_num, type)
+    if available:
+        data = get_json(f"sessions/{year}/{round_num}/{type}/info.json")
+        if data is not None:
+            return data
+
+    # 3. Last resort: minimal fallback from schedule (only for live/very recent)
     schedule = get_json(f"seasons/{year}/schedule.json")
     if schedule:
         events = schedule.get("events", [])
@@ -141,13 +147,6 @@ async def get_session(
                 "session_type": session_type_labels.get(type, type),
                 "drivers": [],
             }
-
-    # On-demand: try to process the session via FastF1 (for replays)
-    available = await ensure_session_data(year, round_num, type)
-    if available:
-        data = get_json(f"sessions/{year}/{round_num}/{type}/info.json")
-        if data is not None:
-            return data
 
     raise HTTPException(
         status_code=404,
