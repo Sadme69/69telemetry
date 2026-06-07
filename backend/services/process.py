@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Locks to prevent duplicate processing of the same session
 _locks: dict[str, asyncio.Lock] = {}
+# Track active background tasks
+_tasks: dict[str, asyncio.Task] = {}
 
 
 def process_session_sync(
@@ -159,78 +161,72 @@ async def ensure_session_data(
     """Ensure session data exists, processing on-demand if needed.
 
     Uses per-session locks so concurrent requests wait rather than duplicate work.
-    on_status: optional async callback(message: str) for progress updates.
     """
     base = f"sessions/{year}/{round_num}/{session_type}"
+    key = f"{year}_{round_num}_{session_type}"
 
-    # Fast path: data already exists
+    # 1. Fast path: data already exists
     if storage.exists(f"{base}/replay.json"):
         return True
 
-    # Get or create lock for this session
-    key = f"{year}_{round_num}_{session_type}"
+    # 2. Check if a task is already running
+    if key in _tasks and not _tasks[key].done():
+        try:
+            # Wait for existing task but with timeout for HTTP
+            await asyncio.wait_for(asyncio.shield(_tasks[key]), timeout=45.0)
+            return storage.exists(f"{base}/replay.json")
+        except asyncio.TimeoutError:
+            return False
+
+    # 3. Start new processing task
     if key not in _locks:
         _locks[key] = asyncio.Lock()
 
-    # If already locked, wait but with a timeout to avoid hanging the HTTP request
-    if _locks[key].locked():
-        try:
-            # Wait up to 45s for existing task
-            await asyncio.wait_for(_locks[key].acquire(), timeout=45.0)
-            _locks[key].release()  # Immediately release after acquiring
-            return storage.exists(f"{base}/replay.json")
-        except asyncio.TimeoutError:
-            # Still processing, tell frontend to try again
-            return False
-
     async with _locks[key]:
-        # Double-check after acquiring lock
+        # Double check after lock
         if storage.exists(f"{base}/replay.json"):
             return True
+        if key in _tasks and not _tasks[key].done():
+            return False
 
-        # Wrap sync callback for async on_status
-        status_messages = []
-
-        def sync_status(msg: str):
-            status_messages.append(msg)
-
-        # 1. Run primary processing in a separate task so it survives even if this request times out
         async def run_processing():
             try:
+                # Primary processing (no telemetry)
                 success = await asyncio.to_thread(
                     process_session_sync,
                     year,
                     round_num,
                     session_type,
-                    on_status=sync_status,
-                    process_telemetry=False, # Skip telemetry for initial load
+                    on_status=None,
+                    process_telemetry=False,
                 )
                 if success:
-                    # Start telemetry processing immediately after primary finishes
-                    await asyncio.to_thread(
+                    # Immediately start telemetry in background
+                    asyncio.create_task(asyncio.to_thread(
                         process_session_sync,
                         year,
                         round_num,
                         session_type,
                         skip_existing=True,
                         process_telemetry=True,
-                    )
+                    ))
                 return success
             except Exception as e:
-                logger.error(f"Background processing task failed for {key}: {e}")
+                logger.error(f"Processing task failed for {key}: {e}")
                 return False
+            finally:
+                # Cleanup task reference when done
+                _tasks.pop(key, None)
 
-        # Create the task
-        processing_task = asyncio.create_task(run_processing())
+        task = asyncio.create_task(run_processing())
+        _tasks[key] = task
 
-        # 2. Wait for the task to finish, but with a timeout for the HTTP layer
         try:
-            # Wait up to 50s for the task to finish
-            success = await asyncio.wait_for(asyncio.shield(processing_task), timeout=50.0)
-            return success
+            # Wait for task with timeout
+            await asyncio.wait_for(asyncio.shield(task), timeout=50.0)
+            return storage.exists(f"{base}/replay.json")
         except asyncio.TimeoutError:
-            logger.warning(f"Processing timeout for {key}, task will continue in background")
-            # We return False to the caller, which triggers the 202 status in the router
+            logger.warning(f"Initial request for {key} timed out, processing continues...")
             return False
 
 
