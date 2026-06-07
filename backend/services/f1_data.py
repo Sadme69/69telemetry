@@ -4,7 +4,6 @@ import asyncio
 import os
 import logging
 import threading
-import gc
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -28,10 +27,8 @@ except OSError:
     os.makedirs(CACHE_DIR, exist_ok=True)
     fastf1.Cache.enable_cache(CACHE_DIR)
 
-# In-memory cache for loaded sessions (with limit to prevent memory bloat)
+# In-memory cache for loaded sessions (with lock to prevent concurrent duplicate loads)
 _session_cache: dict[str, fastf1.core.Session] = {}
-_session_cache_order: list[str] = []
-_MAX_CACHE_SIZE = 1
 _session_lock = threading.Lock()
 
 
@@ -191,43 +188,26 @@ async def get_season_events(year: int) -> list[dict]:
 
 def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.Session:
     key = _cache_key(year, round_num, session_type)
-    
+    if key in _session_cache:
+        return _session_cache[key]
+
     with _session_lock:
+        # Double-check after acquiring lock
         if key in _session_cache:
-            # Move to end of order (most recently used)
-            if key in _session_cache_order:
-                _session_cache_order.remove(key)
-            _session_cache_order.append(key)
             return _session_cache[key]
 
         logger.info(f"Loading session {year}/{round_num}/{session_type} from FastF1...")
         session = fastf1.get_session(year, round_num, session_type)
-        try:
-            session.load(
-                telemetry=True,
-                laps=True,
-                weather=True,
-                messages=True,
-            )
-        except Exception as e:
-            # Check if this is a "session not available" error from FastF1
-            err_msg = str(e).lower()
-            if "no data for this session" in err_msg or "not available" in err_msg:
-                logger.warning(f"Session {year}/{round_num}/{session_type} is not yet available on F1 servers.")
-                raise ValueError(f"Session data not available: {e}")
-            raise e
+        session.load(
+            telemetry=True,
+            laps=True,
+            weather=True,
+            messages=True,
+        )
 
         # Only cache if we actually got meaningful data
         if len(session.laps) > 0:
-            # Enforce cache size limit
-            if len(_session_cache) >= _MAX_CACHE_SIZE:
-                oldest_key = _session_cache_order.pop(0)
-                _session_cache.pop(oldest_key, None)
-                gc.collect()  # Force release memory back to OS
-                logger.info(f"Evicted {oldest_key} and forced GC to save RAM")
-            
             _session_cache[key] = session
-            _session_cache_order.append(key)
 
         logger.info(f"Session {year}/{round_num}/{session_type} loaded.")
         return session
@@ -456,8 +436,8 @@ def _get_driver_telemetry_sync(
     has_distance = "Distance" in tel.columns
     has_drs = "DRS" in tel.columns
 
-    # Downsample if too many points (target ~500 points for smooth charts)
-    step = max(1, len(tel) // 500)
+    # Downsample if too many points (target ~250 points for low-RAM environment)
+    step = max(1, len(tel) // 250)
     tel_sampled = tel.iloc[::step]
 
     result = {
@@ -569,8 +549,9 @@ def _get_driver_positions_by_time_sync(
     max_date = max(all_dates)
     total_seconds = (max_date - min_date).total_seconds()
 
-    # Sample every 0.5 seconds for smooth replay
-    sample_interval = 0.5
+    # Sample every 1.0 seconds for smooth replay with minimal RAM
+    # Frontend will interpolate between frames for 60fps movement
+    sample_interval = 1.0
     num_samples = int(total_seconds / sample_interval)
 
     # Use the same normalization as the track outline (fastest lap)
