@@ -198,12 +198,20 @@ def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.S
 
         logger.info(f"Loading session {year}/{round_num}/{session_type} from FastF1...")
         session = fastf1.get_session(year, round_num, session_type)
-        session.load(
-            telemetry=True,
-            laps=True,
-            weather=True,
-            messages=True,
-        )
+        try:
+            session.load(
+                telemetry=True,
+                laps=True,
+                weather=True,
+                messages=True,
+            )
+        except Exception as e:
+            # Check if this is a "session not available" error from FastF1
+            err_msg = str(e).lower()
+            if "no data for this session" in err_msg or "not available" in err_msg:
+                logger.warning(f"Session {year}/{round_num}/{session_type} is not yet available on F1 servers.")
+                raise ValueError(f"Session data not available: {e}")
+            raise e
 
         # Only cache if we actually got meaningful data
         if len(session.laps) > 0:

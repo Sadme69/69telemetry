@@ -23,7 +23,8 @@ CHECK_INTERVAL = 30 * 60
 ACTIVE_DAYS = {0, 4, 5, 6}  # Mon, Fri, Sat, Sun
 
 # How long after a session's scheduled start before we try to fetch data
-DATA_AVAILABILITY_DELAY = timedelta(hours=0)
+# F1 data usually takes 1-2 hours to become available in FastF1 after a session
+DATA_AVAILABILITY_DELAY = timedelta(hours=2)
 
 # AUTO_PRECOMPUTE presets: env value -> set of session type codes to fetch.
 # Codes match SESSION_NAME_TO_TYPE in services/f1_data.py.
