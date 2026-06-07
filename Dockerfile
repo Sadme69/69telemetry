@@ -1,47 +1,44 @@
-# ── Stage 1: Build frontend ──
-FROM node:20-alpine AS frontend
+FROM node:20-alpine AS base
+
+# Install dependencies
+FROM base AS deps
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json* ./
+COPY package.json package-lock.json* ./
 RUN npm ci
-COPY frontend/ ./
+
+# Build
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ARG NEXT_PUBLIC_API_URL=__NEXT_PUBLIC_API_URL__
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build
-# Produces /app/out/ with static HTML/CSS/JS
 
-# ── Stage 2: Production ──
-FROM python:3.11-slim
-
+# Production
+FROM base AS runner
 WORKDIR /app
 
-# System deps (numpy/pandas, HEIC support)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ libheif-dev && \
-    rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production
 
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-COPY backend/ .
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy frontend build output
-COPY --from=frontend /app/out /app/static
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Create data directory
-RUN mkdir -p /data/fastf1-cache
+USER nextjs
 
-EXPOSE 8000
+EXPOSE 3000
 
-ENV PORT=8000
-ENV STATIC_DIR=/app/static
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# --- Memory tuning for small (<=512MB) containers --- (see backend/Dockerfile)
-ENV MALLOC_ARENA_MAX=2 \
-    MALLOC_TRIM_THRESHOLD_=100000 \
-    OMP_NUM_THREADS=1 \
-    OPENBLAS_NUM_THREADS=1 \
-    MKL_NUM_THREADS=1 \
-    NUMEXPR_NUM_THREADS=1 \
-    NUMEXPR_MAX_THREADS=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
-CMD sh -c "cp -n /app/data/pit_loss.json /data/pit_loss.json 2>/dev/null; uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log"
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["node", "server.js"]
