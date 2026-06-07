@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, memo, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ReplayDriver } from "@/hooks/useReplaySocket";
 import { ReplaySettings } from "@/hooks/useSettings";
 import { TYRE_COLORS, TYRE_SHORT, TEAM_ABBR } from "@/lib/constants";
@@ -86,7 +86,7 @@ function computeIntervals(sorted: ReplayDriver[]): Map<string, string> {
   return intervals;
 }
 
-function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, compact, onScaleChange, lapData, currentLap, mobileTeamAbbrHidden }: Props) {
+export default function Leaderboard({ drivers, highlightedDrivers, onDriverClick, settings, currentTime, isRace, isQualifying, compact, onScaleChange, lapData, currentLap, mobileTeamAbbrHidden }: Props) {
   const [showInterval, setShowInterval] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,11 +120,11 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
     return () => window.removeEventListener("resize", updateScale);
   }, [drivers.length, settings.showGapToLeader, settings.showBestLapTime, settings.showLastLapTime, isRace, compact, onScaleChange]);
 
-  const sorted = useMemo(() => [...drivers].sort(
+  const sorted = [...drivers].sort(
     (a, b) => (a.position ?? 999) - (b.position ?? 999),
-  ), [drivers]);
+  );
 
-  const intervals = useMemo(() => isRace && showInterval ? computeIntervals(sorted) : null, [isRace, showInterval, sorted]);
+  const intervals = isRace && showInterval ? computeIntervals(sorted) : null;
 
   return (
     <div ref={containerRef} className={`bg-f1-card border-f1-border h-full ${compact ? "overflow-y-auto" : "overflow-y-auto sm:overflow-hidden"}`}>
@@ -315,7 +315,7 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
                 }
 
                 if (!lastLapTime || lastLapNum < 2 || drv.retired) return (
-                  <span className="w-[50px] sm:w-[60px] text-[11px] sm:text-xs text-right tabular-nums text-f1-muted flex-shrink-0" title="Last lap time">
+                  <span className="w-[50px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums text-f1-muted" title="Last lap time">
                     {drv.retired ? "" : (lastLapTime || "")}
                   </span>
                 );
@@ -358,7 +358,7 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
                 const color = isFastest ? "text-purple-400" : isPersonalBest ? "text-green-400" : "text-f1-muted";
 
                 return (
-                  <span className={`w-[50px] sm:w-[60px] text-[11px] sm:text-xs text-right tabular-nums flex-shrink-0 ${color}`} title="Last lap time">
+                  <span className={`w-[50px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums ${color}`} title="Last lap time">
                     {lastLapTime}
                   </span>
                 );
@@ -500,6 +500,3 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
     </div>
   );
 }
-
-const Leaderboard = memo(LeaderboardComponent);
-export default Leaderboard;

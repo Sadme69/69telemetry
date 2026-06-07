@@ -27,13 +27,42 @@ except OSError:
     os.makedirs(CACHE_DIR, exist_ok=True)
     fastf1.Cache.enable_cache(CACHE_DIR)
 
-# In-memory cache for loaded sessions (with lock to prevent concurrent duplicate loads)
+# In-memory cache for loaded sessions (with lock to prevent concurrent duplicate loads).
+#
+# A fully-loaded FastF1 race session (telemetry + laps + weather + messages) holds
+# hundreds of MB of pandas DataFrames. On a 512MB container we can only afford ONE
+# at a time, so the cache is hard-bounded: loading a new session evicts any other.
+# This keeps the "load once, reuse across the ~6 derived extractions of a single
+# session" optimisation while never accumulating sessions across the precompute loop.
+_SESSION_CACHE_MAX = 1
 _session_cache: dict[str, fastf1.core.Session] = {}
 _session_lock = threading.Lock()
 
 
 def _cache_key(year: int, round_num: int, session_type: str) -> str:
     return f"{year}_{round_num}_{session_type}"
+
+
+def evict_session(year: int, round_num: int, session_type: str) -> None:
+    """Drop a single cached session and return its memory to the OS."""
+    from services.memory import release_memory
+    key = _cache_key(year, round_num, session_type)
+    with _session_lock:
+        removed = _session_cache.pop(key, None)
+    if removed is not None:
+        del removed
+        release_memory()
+        logger.info(f"Evicted session {key} from memory cache")
+
+
+def clear_session_cache() -> None:
+    """Drop all cached sessions (used between precompute jobs)."""
+    from services.memory import release_memory
+    with _session_lock:
+        had = bool(_session_cache)
+        _session_cache.clear()
+    if had:
+        release_memory()
 
 
 # Cache for session availability checks: key -> bool
@@ -207,6 +236,16 @@ def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.S
 
         # Only cache if we actually got meaningful data
         if len(session.laps) > 0:
+            # Hard cap: never hold more than _SESSION_CACHE_MAX sessions resident.
+            # Evict the others before inserting so peak RSS stays bounded.
+            if _session_cache:
+                stale = [k for k in _session_cache if k != key]
+                for k in stale:
+                    _session_cache.pop(k, None)
+                if stale:
+                    from services.memory import release_memory
+                    release_memory()
+                    logger.info(f"Evicted {len(stale)} stale session(s) to make room for {key}")
             _session_cache[key] = session
 
         logger.info(f"Session {year}/{round_num}/{session_type} loaded.")
@@ -358,18 +397,22 @@ def _get_lap_data_sync(year: int, round_num: int, session_type: str = "R") -> li
     # FastF1 lap Time is relative to t0_date, so: replay_ts = Time - (min_tel_date - t0_date)
     replay_offset_secs = 0.0
     try:
-        all_dates = []
+        min_date = None
         drivers_list = laps["Driver"].unique().tolist()
         for drv in drivers_list:
             drv_laps = laps.pick_drivers(drv)
             try:
                 tel = drv_laps.get_telemetry()
                 if tel is not None and "Date" in tel.columns and len(tel) > 0:
-                    all_dates.extend(tel["Date"].dropna().tolist())
+                    col = tel["Date"].dropna()
+                    if len(col) > 0:
+                        d_lo = col.min()
+                        if min_date is None or d_lo < min_date:
+                            min_date = d_lo
+                del tel
             except Exception:
                 continue
-        if all_dates and hasattr(session, "t0_date") and session.t0_date is not None:
-            min_date = min(all_dates)
+        if min_date is not None and hasattr(session, "t0_date") and session.t0_date is not None:
             replay_offset_secs = (min_date - session.t0_date).total_seconds()
     except Exception:
         replay_offset_secs = 0.0
@@ -436,8 +479,8 @@ def _get_driver_telemetry_sync(
     has_distance = "Distance" in tel.columns
     has_drs = "DRS" in tel.columns
 
-    # Downsample if too many points (target ~250 points for low-RAM environment)
-    step = max(1, len(tel) // 250)
+    # Downsample if too many points (target ~500 points for smooth charts)
+    step = max(1, len(tel) // 500)
     tel_sampled = tel.iloc[::step]
 
     result = {
@@ -536,22 +579,29 @@ def _get_driver_positions_by_time_sync(
     if not driver_pos_data:
         return []
 
-    # Find common time range
-    all_dates = []
+    # Find common time range without materialising every timestamp into a Python
+    # list (a long race has millions of samples — the list alone was a real spike).
+    min_date = None
+    max_date = None
     for drv, tel in driver_pos_data.items():
         if "Date" in tel.columns and len(tel) > 0:
-            all_dates.extend(tel["Date"].dropna().tolist())
+            col = tel["Date"].dropna()
+            if len(col) == 0:
+                continue
+            d_lo = col.min()
+            d_hi = col.max()
+            if min_date is None or d_lo < min_date:
+                min_date = d_lo
+            if max_date is None or d_hi > max_date:
+                max_date = d_hi
 
-    if not all_dates:
+    if min_date is None:
         return []
 
-    min_date = min(all_dates)
-    max_date = max(all_dates)
     total_seconds = (max_date - min_date).total_seconds()
 
-    # Sample every 1.0 seconds for smooth replay with minimal RAM
-    # Frontend will interpolate between frames for 60fps movement
-    sample_interval = 1.0
+    # Sample every 0.5 seconds for smooth replay
+    sample_interval = 0.5
     num_samples = int(total_seconds / sample_interval)
 
     # Use the same normalization as the track outline (fastest lap)
@@ -1141,6 +1191,13 @@ def _get_driver_positions_by_time_sync(
         }
 
     logger.info(f"Pre-processed {len(driver_arrays)} drivers for frame generation, {min(num_samples, 50000)} frames to build")
+
+    # The per-driver telemetry DataFrames are now fully captured in driver_arrays
+    # (compact numpy arrays). Drop the DataFrames before the frame loop so we don't
+    # hold ~20 full-resolution telemetry frames alongside the growing frames list.
+    driver_pos_data.clear()
+    from services.memory import release_memory
+    release_memory()
 
     # Load real-time gap-to-leader data from F1 timing feed
     # abbr -> (times_array, gap_strings_array)

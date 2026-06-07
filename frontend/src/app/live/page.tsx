@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useApi } from "@/hooks/useApi";
 import { useLiveSocket } from "@/hooks/useLiveSocket";
@@ -221,41 +221,6 @@ export default function LivePage() {
     lastRcCountRef.current = msgs.length;
   }, [live.rcMessages?.length, settings.rcSound]);
 
-  const driversRaw = live.frame?.drivers || [];
-  const drivers = isQualifying ? driversRaw.filter((d) => !d.retired) : driversRaw;
-
-  const canvasDrivers = useMemo(() => 
-    drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
-      abbr: d.abbr,
-      x: d.x,
-      y: d.y,
-      color: d.color,
-      position: d.position,
-    })),
-    [drivers]
-  );
-
-  // Session hasn't started yet (connected but no driver data)
-  const waitingForSession = live.ready && drivers.length === 0;
-
-  // Calculate leaderboard width
-  const leaderboardWidth = (() => {
-    let w = 106;
-    if (settings.showTeamAbbr) w += 28;
-    if (!isRace) w += 18;
-    if (isRace && settings.showGridChange) w += 24;
-    if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
-    if (settings.showGapToLeader) w += 56;
-    if (isQualifying && settings.showSectors) w += 36;
-    if (isRace && settings.showPitStops) w += 24;
-    if (isRace && settings.showTyreHistory) w += 36;
-    if (settings.showTyreType) w += 24;
-    if (settings.showTyreAge) w += 20;
-    if (isRace && settings.showPitPrediction) w += 40;
-    if (isRace && settings.showPitPrediction && settings.showPitFreeAir) w += 36;
-    return w;
-  })();
-
   // Show loading only while the WebSocket is connecting
   if (live.loading) {
     return (
@@ -286,8 +251,31 @@ export default function LivePage() {
 
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
+  const driversRaw = live.frame?.drivers || [];
+  const drivers = isQualifying ? driversRaw.filter((d) => !d.retired) : driversRaw;
   const trackStatus = live.frame?.status || "green";
   const weather = live.frame?.weather;
+
+  // Session hasn't started yet (connected but no driver data)
+  const waitingForSession = live.ready && drivers.length === 0;
+
+  // Calculate leaderboard width
+  const leaderboardWidth = (() => {
+    let w = 106;
+    if (settings.showTeamAbbr) w += 28;
+    if (!isRace) w += 18;
+    if (isRace && settings.showGridChange) w += 24;
+    if (!isRace && settings.showBestLapTime) w += 60; // best lap time column
+    if (settings.showGapToLeader) w += 56;
+    if (isQualifying && settings.showSectors) w += 36;
+    if (isRace && settings.showPitStops) w += 24;
+    if (isRace && settings.showTyreHistory) w += 36;
+    if (settings.showTyreType) w += 24;
+    if (settings.showTyreAge) w += 20;
+    if (isRace && settings.showPitPrediction) w += 40;
+    if (isRace && settings.showPitPrediction && settings.showPitFreeAir) w += 36;
+    return w;
+  })();
 
   return (
     <div className="h-dvh flex flex-col bg-f1-dark overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
@@ -489,7 +477,13 @@ export default function LivePage() {
                   trackPoints={trackPoints}
                   rotation={rotation}
                   trackStatus={trackStatus}
-                  drivers={canvasDrivers}
+                  drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
+                    abbr: d.abbr,
+                    x: d.x,
+                    y: d.y,
+                    color: d.color,
+                    position: d.position,
+                  }))}
                   highlightedDrivers={selectedDrivers}
                   playbackSpeed={1}
                   showDriverNames={settings.showDriverNames}
@@ -870,7 +864,7 @@ export default function LivePage() {
                     trackPoints={trackPoints}
                     rotation={rotation}
                     trackStatus={trackStatus}
-                    drivers={canvasDrivers}
+                    drivers={[]}
                     highlightedDrivers={selectedDrivers}
                     showDriverNames={settings.showDriverNames}
                     corners={settings.showCorners ? trackData?.corners : null}

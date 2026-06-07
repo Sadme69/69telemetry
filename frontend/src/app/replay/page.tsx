@@ -278,6 +278,45 @@ export default function ReplayPage() {
     }
   }, [settings.showAllPanels]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isLoading = sessionLoading || trackLoading;
+  const dataError = sessionError || trackError;
+
+  // Show loading until session + track + replay frames are all ready
+  if (isLoading || (!dataError && replay.loading)) {
+    return (
+      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block w-12 h-12 border-[3px] border-f1-muted border-t-f1-red rounded-full animate-spin mb-6" />
+          <p className="text-white text-lg font-bold">
+            {replay.statusMessage || "Loading session data..."}
+          </p>
+          <p className="text-f1-muted text-sm mt-2">
+            {replay.statusMessage ? "This may take a few minutes the first time a session loads" : "First load may take up to 60 seconds while data is fetched"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
+          <p className="text-f1-muted mb-1">
+            Data for this session is not available yet.
+          </p>
+          <p className="text-f1-muted text-sm mb-6">
+            If the session just finished, data typically becomes available 1–2 hours after the chequered flag.
+          </p>
+          <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
+            Back to session picker
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
   const drivers = replay.frame?.drivers || [];
@@ -343,59 +382,6 @@ export default function ReplayPage() {
   })();
 
   // On mobile, auto-hide team abbreviation if columns overflow the screen
-  const mobileTeamAbbrHidden = isMobile && settings.showTeamAbbr && leaderboardWidthFull > (typeof window !== "undefined" ? window.innerWidth : 400);
-  const leaderboardWidth = mobileTeamAbbrHidden ? leaderboardWidthFull - 28 : leaderboardWidthFull;
-
-  const canvasDrivers = useMemo(() => 
-    drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
-      abbr: d.abbr,
-      x: d.x,
-      y: d.y,
-      color: d.color,
-      position: d.position,
-    })),
-    [drivers]
-  );
-
-  const isLoading = sessionLoading || trackLoading;
-  const dataError = sessionError || trackError;
-
-  // Show loading until session + track + replay frames are all ready
-  if (isLoading || (!dataError && replay.loading)) {
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block w-12 h-12 border-[3px] border-f1-muted border-t-f1-red rounded-full animate-spin mb-6" />
-          <p className="text-white text-lg font-bold">
-            {replay.statusMessage || "Loading session data..."}
-          </p>
-          <p className="text-f1-muted text-sm mt-2">
-            {replay.statusMessage ? "This may take a few minutes the first time a session loads" : "First load may take up to 60 seconds while data is fetched"}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (dataError) {
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
-          <p className="text-f1-muted mb-1">
-            Data for this session is not available yet.
-          </p>
-          <p className="text-f1-muted text-sm mb-6">
-            If the session just finished, data typically becomes available 1–2 hours after the chequered flag.
-          </p>
-          <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
-            Back to session picker
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   const mobileTeamAbbrHidden = isMobile && settings.showTeamAbbr && leaderboardWidthFull > (typeof window !== "undefined" ? window.innerWidth : 400);
   const leaderboardWidth = mobileTeamAbbrHidden ? leaderboardWidthFull - 28 : leaderboardWidthFull;
 
@@ -616,7 +602,13 @@ export default function ReplayPage() {
                 trackPoints={trackPoints}
                 rotation={rotation}
                 trackStatus={trackStatus}
-                drivers={canvasDrivers}
+                drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
+                  abbr: d.abbr,
+                  x: d.x,
+                  y: d.y,
+                  color: d.color,
+                  position: d.position,
+                }))}
                 highlightedDrivers={selectedDrivers}
                 playbackSpeed={replay.speed}
                 showDriverNames={settings.showDriverNames}
@@ -1037,7 +1029,13 @@ export default function ReplayPage() {
                     trackPoints={trackPoints}
                     rotation={rotation}
                     trackStatus={trackStatus}
-                    drivers={canvasDrivers}
+                    drivers={drivers.filter((d) => !d.retired && !d.no_timing && !d.finished && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
+                      abbr: d.abbr,
+                      x: d.x,
+                      y: d.y,
+                      color: d.color,
+                      position: d.position,
+                    }))}
                     highlightedDrivers={selectedDrivers}
                     playbackSpeed={replay.speed}
                     showDriverNames={settings.showDriverNames}

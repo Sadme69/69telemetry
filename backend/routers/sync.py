@@ -9,16 +9,30 @@ import re
 from typing import Optional
 
 import httpx
-from PIL import Image
-from pillow_heif import register_heif_opener
 from fastapi import APIRouter, UploadFile, File, Query, HTTPException, Body
-
-register_heif_opener()
 
 from routers.replay import _get_frames  # reads from R2
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["sync"])
+
+# Pillow + pillow-heif (and the bundled libheif) are only needed by the photo
+# leaderboard-sync endpoint. Import them lazily so the ~20-30MB they pull in
+# isn't paid for on every deploy that never uses that feature.
+_heif_registered = False
+
+
+def _ensure_pillow():
+    global _heif_registered
+    from PIL import Image
+    if not _heif_registered:
+        try:
+            from pillow_heif import register_heif_opener
+            register_heif_opener()
+        except Exception:
+            pass
+        _heif_registered = True
+    return Image
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 VISION_MODEL = "google/gemini-2.0-flash-001"
@@ -59,6 +73,7 @@ Rules:
 
 def _convert_to_jpeg(image_bytes: bytes, max_dim: int = 1200, quality: int = 80) -> bytes:
     """Convert any image format to compressed JPEG."""
+    Image = _ensure_pillow()
     img = Image.open(io.BytesIO(image_bytes))
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")

@@ -36,8 +36,7 @@ function getCanvasWindow(canvas: HTMLCanvasElement | null): Window {
 
 
 export default function TrackCanvas({ trackPoints, rotation, trackStatus = "green", drivers, highlightedDrivers, playbackSpeed = 1, showDriverNames = true, sectorOverlay = null, corners = null, marshalSectors = null, sectorFlags = null }: Props) {
-  const bgCanvasRef = useRef<HTMLCanvasElement>(null);
-  const fgCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sizeRef = useRef<{ w: number; h: number }>({ w: 0, h: 0 });
 
@@ -58,35 +57,17 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
   const sectorFlagsRef = useRef(sectorFlags);
   sectorFlagsRef.current = sectorFlags;
 
-  // Redraw background when track-related props change
-  useEffect(() => {
-    const canvas = bgCanvasRef.current;
-    if (!canvas) return;
-    const hostWindow = getCanvasWindow(canvas);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const dpr = hostWindow.devicePixelRatio || 1;
-    const { w, h } = sizeRef.current;
-    if (w === 0 || h === 0) return;
-
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-
-    drawTrack(ctx, trackPoints, w, h, rotation, trackStatus, sectorOverlay, corners, marshalSectors, sectorFlags);
-  }, [trackPoints, rotation, trackStatus, sectorOverlay, corners, marshalSectors, sectorFlags]);
-
   // Update targets when drivers prop changes
   useEffect(() => {
     driversRef.current = drivers;
     const now = performance.now();
+    // Scale interpolation duration with speed so dots keep up
     const duration = BASE_INTERP_MS / Math.max(speedRef.current, 0.25);
 
     for (const drv of drivers) {
       const entry = posRef.current.get(drv.abbr);
       if (!entry) {
+        // First time seeing driver - snap to position
         posRef.current.set(drv.abbr, {
           prevX: drv.x, prevY: drv.y,
           targetX: drv.x, targetY: drv.y,
@@ -94,6 +75,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
           duration,
         });
       } else {
+        // Start new interpolation from current visual position
         const elapsed = now - entry.startTime;
         const t = Math.min(elapsed / entry.duration, 1);
         entry.prevX = entry.prevX + (entry.targetX - entry.prevX) * t;
@@ -106,14 +88,14 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
     }
   }, [drivers]);
 
-  // Continuous animation loop for drivers only
+  // Continuous animation loop
   useEffect(() => {
     let running = true;
 
     function animate() {
       if (!running) return;
 
-      const canvas = fgCanvasRef.current;
+      const canvas = canvasRef.current;
       const hostWindow = getCanvasWindow(canvas);
       if (!canvas) {
         hostWindow.requestAnimationFrame(animate);
@@ -142,6 +124,8 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
+      drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current, cornersRef.current, marshalSectorsRef.current, sectorFlagsRef.current);
+
       const now = performance.now();
       const curr = driversRef.current;
       const interpolated: DriverMarker[] = curr.map((drv) => {
@@ -161,7 +145,7 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       hostWindow.requestAnimationFrame(animate);
     }
 
-    const hostWindow = getCanvasWindow(fgCanvasRef.current);
+    const hostWindow = getCanvasWindow(canvasRef.current);
     hostWindow.requestAnimationFrame(animate);
     return () => { running = false; };
   }, [trackPoints, rotation, highlightedDrivers]);
@@ -179,30 +163,16 @@ export default function TrackCanvas({ trackPoints, rotation, trackStatus = "gree
       const entry = entries[0];
       if (entry) {
         sizeRef.current = { w: entry.contentRect.width, h: entry.contentRect.height };
-        // Force background redraw on resize
-        const canvas = bgCanvasRef.current;
-        if (canvas) {
-          const dpr = hostWindow.devicePixelRatio || 1;
-          const { w, h } = sizeRef.current;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            canvas.width = Math.round(w * dpr);
-            canvas.height = Math.round(h * dpr);
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            drawTrack(ctx, trackPoints, w, h, rotation, trackStatusRef.current, sectorOverlayRef.current, cornersRef.current, marshalSectorsRef.current, sectorFlagsRef.current);
-          }
-        }
       }
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [trackPoints, rotation]);
+  }, []);
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-f1-dark relative">
-      <canvas ref={bgCanvasRef} className="absolute inset-0 w-full h-full" />
-      <canvas ref={fgCanvasRef} className="absolute inset-0 w-full h-full" />
+    <div ref={containerRef} className="w-full h-full bg-f1-dark">
+      <canvas ref={canvasRef} className="w-full h-full" />
     </div>
   );
 }

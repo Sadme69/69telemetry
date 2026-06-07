@@ -8,6 +8,7 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from services.storage import get_json
 from services.process import ensure_session_data_ws
+from services.memory import release_memory
 
 def _log_memory():
     """Log current process memory usage."""
@@ -35,7 +36,13 @@ _replay_cache: dict[str, list[dict]] = {}
 _replay_clients: dict[str, int] = {}  # key -> active WebSocket count
 _eviction_tasks: dict[str, asyncio.Task] = {}  # key -> pending eviction task
 
-CACHE_EVICTION_SECONDS = 300  # 5 minutes after last client disconnects
+CACHE_EVICTION_SECONDS = 120  # 2 minutes after last client disconnects
+
+# Hard cap on how many parsed replay sessions may sit in memory at once. A single
+# race's frames can be tens of MB once parsed into Python objects, so on a 512MB
+# box we keep only a couple. When the cap is exceeded, idle (client-less) sessions
+# are evicted oldest-first.
+MAX_CACHED_REPLAYS = 2
 
 # In-memory cache for pit loss data
 _pit_loss_cache: dict | None = None
@@ -168,6 +175,24 @@ def _sanitize_frame(frame: dict) -> dict:
     return frame
 
 
+def _enforce_cache_cap():
+    """Evict idle (client-less) cached sessions oldest-first until under the cap."""
+    if len(_replay_cache) <= MAX_CACHED_REPLAYS:
+        return
+    # dict preserves insertion order, so iterate oldest-first
+    for k in list(_replay_cache.keys()):
+        if len(_replay_cache) <= MAX_CACHED_REPLAYS:
+            break
+        if _replay_clients.get(k, 0) > 0:
+            continue  # in use — don't evict
+        del _replay_cache[k]
+        task = _eviction_tasks.pop(k, None)
+        if task:
+            task.cancel()
+        logger.info(f"[memory] Evicted {k} (cache cap {MAX_CACHED_REPLAYS} exceeded)")
+    release_memory()
+
+
 def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]:
     key = f"{year}_{round_num}_{session_type}"
     if key not in _replay_cache:
@@ -177,6 +202,7 @@ def _get_frames_sync(year: int, round_num: int, session_type: str) -> list[dict]
         for f in frames:
             _sanitize_frame(f)
         _replay_cache[key] = frames
+        _enforce_cache_cap()
         logger.info(f"[memory] Cached {key} ({len(frames)} frames) — {_log_memory()}")
     return _replay_cache[key]
 
@@ -213,6 +239,7 @@ async def _evict_after_delay(key: str):
         if _replay_clients.get(key, 0) == 0 and key in _replay_cache:
             del _replay_cache[key]
             _eviction_tasks.pop(key, None)
+            release_memory()
             logger.info(f"[memory] Evicted {key} — {_log_memory()}")
     except asyncio.CancelledError:
         pass
