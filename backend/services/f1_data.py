@@ -4,6 +4,7 @@ import asyncio
 import os
 import logging
 import threading
+import gc
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -30,7 +31,7 @@ except OSError:
 # In-memory cache for loaded sessions (with limit to prevent memory bloat)
 _session_cache: dict[str, fastf1.core.Session] = {}
 _session_cache_order: list[str] = []
-_MAX_CACHE_SIZE = 2
+_MAX_CACHE_SIZE = 1
 _session_lock = threading.Lock()
 
 
@@ -222,7 +223,8 @@ def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.S
             if len(_session_cache) >= _MAX_CACHE_SIZE:
                 oldest_key = _session_cache_order.pop(0)
                 _session_cache.pop(oldest_key, None)
-                logger.info(f"Evicted {oldest_key} from memory cache to save RAM")
+                gc.collect()  # Force release memory back to OS
+                logger.info(f"Evicted {oldest_key} and forced GC to save RAM")
             
             _session_cache[key] = session
             _session_cache_order.append(key)

@@ -28,6 +28,7 @@ ENV PATH=/root/.local/bin:$PATH
 # Memory optimizations for Railway/Small containers
 ENV MALLOC_ARENA_MAX=2
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONOPTIMIZE=1
 
 COPY . .
 
