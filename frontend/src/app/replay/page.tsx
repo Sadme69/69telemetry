@@ -278,45 +278,6 @@ export default function ReplayPage() {
     }
   }, [settings.showAllPanels]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isLoading = sessionLoading || trackLoading;
-  const dataError = sessionError || trackError;
-
-  // Show loading until session + track + replay frames are all ready
-  if (isLoading || (!dataError && replay.loading)) {
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block w-12 h-12 border-[3px] border-f1-muted border-t-f1-red rounded-full animate-spin mb-6" />
-          <p className="text-white text-lg font-bold">
-            {replay.statusMessage || "Loading session data..."}
-          </p>
-          <p className="text-f1-muted text-sm mt-2">
-            {replay.statusMessage ? "This may take a few minutes the first time a session loads" : "First load may take up to 60 seconds while data is fetched"}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (dataError) {
-    return (
-      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
-          <p className="text-f1-muted mb-1">
-            Data for this session is not available yet.
-          </p>
-          <p className="text-f1-muted text-sm mb-6">
-            If the session just finished, data typically becomes available 1–2 hours after the chequered flag.
-          </p>
-          <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
-            Back to session picker
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   const trackPoints = trackData?.track_points || [];
   const rotation = trackData?.rotation || 0;
   const drivers = replay.frame?.drivers || [];
@@ -395,6 +356,48 @@ export default function ReplayPage() {
     })),
     [drivers]
   );
+
+  const isLoading = sessionLoading || trackLoading;
+  const dataError = sessionError || trackError;
+
+  // Show loading until session + track + replay frames are all ready
+  if (isLoading || (!dataError && replay.loading)) {
+    return (
+      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block w-12 h-12 border-[3px] border-f1-muted border-t-f1-red rounded-full animate-spin mb-6" />
+          <p className="text-white text-lg font-bold">
+            {replay.statusMessage || "Loading session data..."}
+          </p>
+          <p className="text-f1-muted text-sm mt-2">
+            {replay.statusMessage ? "This may take a few minutes the first time a session loads" : "First load may take up to 60 seconds while data is fetched"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div className="min-h-screen bg-f1-dark flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-red-400 text-lg font-bold mb-2">Session Unavailable</p>
+          <p className="text-f1-muted mb-1">
+            Data for this session is not available yet.
+          </p>
+          <p className="text-f1-muted text-sm mb-6">
+            If the session just finished, data typically becomes available 1–2 hours after the chequered flag.
+          </p>
+          <a href="/" className="inline-block px-4 py-2 bg-f1-red text-white font-bold text-sm rounded hover:bg-red-700 transition-colors">
+            Back to session picker
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const mobileTeamAbbrHidden = isMobile && settings.showTeamAbbr && leaderboardWidthFull > (typeof window !== "undefined" ? window.innerWidth : 400);
+  const leaderboardWidth = mobileTeamAbbrHidden ? leaderboardWidthFull - 28 : leaderboardWidthFull;
 
   return (
     <div className="h-dvh flex flex-col bg-f1-dark overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
