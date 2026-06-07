@@ -277,6 +277,17 @@ export default function LivePage() {
     return w;
   })();
 
+  const canvasDrivers = useMemo(() => 
+    drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0) && d.x > -0.5 && d.x < 1.5 && d.y > -0.5 && d.y < 1.5).map((d) => ({
+      abbr: d.abbr,
+      x: d.x,
+      y: d.y,
+      color: d.color,
+      position: d.position,
+    })),
+    [drivers]
+  );
+
   return (
     <div className="h-dvh flex flex-col bg-f1-dark overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       {/* Banner */}
@@ -477,13 +488,7 @@ export default function LivePage() {
                   trackPoints={trackPoints}
                   rotation={rotation}
                   trackStatus={trackStatus}
-                  drivers={drivers.filter((d) => !d.retired && !d.no_timing && (d.x !== 0 || d.y !== 0)).map((d) => ({
-                    abbr: d.abbr,
-                    x: d.x,
-                    y: d.y,
-                    color: d.color,
-                    position: d.position,
-                  }))}
+                  drivers={canvasDrivers}
                   highlightedDrivers={selectedDrivers}
                   playbackSpeed={1}
                   showDriverNames={settings.showDriverNames}
@@ -864,7 +869,7 @@ export default function LivePage() {
                     trackPoints={trackPoints}
                     rotation={rotation}
                     trackStatus={trackStatus}
-                    drivers={[]}
+                    drivers={canvasDrivers}
                     highlightedDrivers={selectedDrivers}
                     showDriverNames={settings.showDriverNames}
                     corners={settings.showCorners ? trackData?.corners : null}
