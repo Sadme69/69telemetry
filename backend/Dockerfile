@@ -25,6 +25,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
+# Memory optimizations for Railway/Small containers
+ENV MALLOC_ARENA_MAX=2
+ENV PYTHONUNBUFFERED=1
+
 COPY . .
 
 # Create cache directory
@@ -33,4 +37,4 @@ RUN mkdir -p /data/fastf1-cache
 EXPOSE 8000
 
 ENV PORT=8000
-CMD sh -c "cp -n /app/data/pit_loss.json /data/pit_loss.json 2>/dev/null; uvicorn main:app --host 0.0.0.0 --port $PORT"
+CMD sh -c "cp -n /app/data/pit_loss.json /data/pit_loss.json 2>/dev/null; uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log"

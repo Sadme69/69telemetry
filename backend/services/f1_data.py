@@ -27,8 +27,10 @@ except OSError:
     os.makedirs(CACHE_DIR, exist_ok=True)
     fastf1.Cache.enable_cache(CACHE_DIR)
 
-# In-memory cache for loaded sessions (with lock to prevent concurrent duplicate loads)
+# In-memory cache for loaded sessions (with limit to prevent memory bloat)
 _session_cache: dict[str, fastf1.core.Session] = {}
+_session_cache_order: list[str] = []
+_MAX_CACHE_SIZE = 2
 _session_lock = threading.Lock()
 
 
@@ -188,12 +190,13 @@ async def get_season_events(year: int) -> list[dict]:
 
 def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.Session:
     key = _cache_key(year, round_num, session_type)
-    if key in _session_cache:
-        return _session_cache[key]
-
+    
     with _session_lock:
-        # Double-check after acquiring lock
         if key in _session_cache:
+            # Move to end of order (most recently used)
+            if key in _session_cache_order:
+                _session_cache_order.remove(key)
+            _session_cache_order.append(key)
             return _session_cache[key]
 
         logger.info(f"Loading session {year}/{round_num}/{session_type} from FastF1...")
@@ -215,7 +218,14 @@ def _load_session(year: int, round_num: int, session_type: str) -> fastf1.core.S
 
         # Only cache if we actually got meaningful data
         if len(session.laps) > 0:
+            # Enforce cache size limit
+            if len(_session_cache) >= _MAX_CACHE_SIZE:
+                oldest_key = _session_cache_order.pop(0)
+                _session_cache.pop(oldest_key, None)
+                logger.info(f"Evicted {oldest_key} from memory cache to save RAM")
+            
             _session_cache[key] = session
+            _session_cache_order.append(key)
 
         logger.info(f"Session {year}/{round_num}/{session_type} loaded.")
         return session
