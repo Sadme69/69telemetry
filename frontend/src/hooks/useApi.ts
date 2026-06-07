@@ -26,6 +26,7 @@ export function useApi<T>(path: string | null) {
           if (cancelled) return;
           // If backend returns a processing status (usually via 202 accepted)
           if (result && (result as any).status === "processing") {
+            setLoading(true); // Keep loading while processing
             retryTimeout = setTimeout(fetchData, 5000); // Retry in 5s
             return;
           }

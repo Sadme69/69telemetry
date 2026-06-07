@@ -37,6 +37,7 @@ async def get_session(
         return {"status": "processing", "message": "Session data is being prepared..."}
 
     # 3. Last resort: minimal fallback from schedule (only for live/very recent)
+    # BUT only if we aren't already trying to process it!
     schedule = get_json(f"seasons/{year}/schedule.json")
     if schedule:
 ...

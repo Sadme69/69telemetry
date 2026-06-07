@@ -55,7 +55,7 @@ def process_session_sync(
     # Session info
     try:
         info = _get_session_info_sync(year, round_num, session_type)
-        storage.put_json(f"{base}/info.json", info)
+        # storage.put_json(f"{base}/info.json", info) # DEFERRED
     except Exception as e:
         logger.error(f"[{prefix}] Failed to get session info: {e}")
         return False
@@ -63,9 +63,10 @@ def process_session_sync(
     status("Processing track data...")
 
     # Track data
+    track = None
     try:
         track = _get_track_data_sync(year, round_num, session_type)
-        storage.put_json(f"{base}/track.json", track)
+        # storage.put_json(f"{base}/track.json", track) # DEFERRED
     except Exception as e:
         logger.warning(f"[{prefix}] No track data: {e}")
 
@@ -75,14 +76,15 @@ def process_session_sync(
     laps = None
     try:
         laps = _get_lap_data_sync(year, round_num, session_type)
-        storage.put_json(f"{base}/laps.json", laps)
+        # storage.put_json(f"{base}/laps.json", laps) # DEFERRED
     except Exception as e:
         logger.warning(f"[{prefix}] No lap data: {e}")
 
     # Results
+    results = None
     try:
         results = _get_race_results_sync(year, round_num, session_type)
-        storage.put_json(f"{base}/results.json", results)
+        # storage.put_json(f"{base}/results.json", results) # DEFERRED
     except Exception as e:
         logger.warning(f"[{prefix}] No results: {e}")
 
@@ -91,8 +93,13 @@ def process_session_sync(
     # Replay frames (the big one)
     try:
         frames = _get_driver_positions_by_time_sync(year, round_num, session_type)
+        # Final gate: Save everything together once frames are ready
+        if info: storage.put_json(f"{base}/info.json", info)
+        if track: storage.put_json(f"{base}/track.json", track)
+        if laps: storage.put_json(f"{base}/laps.json", laps)
+        if results: storage.put_json(f"{base}/results.json", results)
         storage.put_json(f"{base}/replay.json", frames)
-        logger.info(f"[{prefix}] Uploaded {len(frames)} replay frames")
+        logger.info(f"[{prefix}] Uploaded {len(frames)} replay frames and essential data")
     except Exception as e:
         logger.warning(f"[{prefix}] No replay data: {e}")
 
