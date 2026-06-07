@@ -187,39 +187,43 @@ async def ensure_session_data(
         def sync_status(msg: str):
             status_messages.append(msg)
 
-        # Run primary processing in a thread with a timeout
-        # Primary processing = everything EXCEPT telemetry
-        try:
-            # Wait up to 50s for primary processing
-            success = await asyncio.wait_for(
-                asyncio.to_thread(
+        # 1. Run primary processing in a separate task so it survives even if this request times out
+        async def run_processing():
+            try:
+                success = await asyncio.to_thread(
                     process_session_sync,
                     year,
                     round_num,
                     session_type,
                     on_status=sync_status,
-                    process_telemetry=False, # Skip telemetry for on-demand HTTP requests
-                ),
-                timeout=50.0
-            )
-            
-            # Start telemetry processing in background without waiting
-            asyncio.create_task(asyncio.to_thread(
-                process_session_sync,
-                year,
-                round_num,
-                session_type,
-                skip_existing=True,
-                process_telemetry=True,
-            ))
-            
+                    process_telemetry=False, # Skip telemetry for initial load
+                )
+                if success:
+                    # Start telemetry processing immediately after primary finishes
+                    await asyncio.to_thread(
+                        process_session_sync,
+                        year,
+                        round_num,
+                        session_type,
+                        skip_existing=True,
+                        process_telemetry=True,
+                    )
+                return success
+            except Exception as e:
+                logger.error(f"Background processing task failed for {key}: {e}")
+                return False
+
+        # Create the task
+        processing_task = asyncio.create_task(run_processing())
+
+        # 2. Wait for the task to finish, but with a timeout for the HTTP layer
+        try:
+            # Wait up to 50s for the task to finish
+            success = await asyncio.wait_for(asyncio.shield(processing_task), timeout=50.0)
             return success
         except asyncio.TimeoutError:
-            logger.warning(f"Processing timeout for {key}, continuing in background")
-            return False
-        except Exception as e:
-            logger.error(f"On-demand processing failed for {key}: {e}")
-            traceback.print_exc()
+            logger.warning(f"Processing timeout for {key}, task will continue in background")
+            # We return False to the caller, which triggers the 202 status in the router
             return False
 
 
