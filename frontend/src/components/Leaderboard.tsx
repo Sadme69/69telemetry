@@ -315,7 +315,7 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
                 }
 
                 if (!lastLapTime || lastLapNum < 2 || drv.retired) return (
-                  <span className="w-[50px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums text-f1-muted" title="Last lap time">
+                  <span className="w-[50px] sm:w-[60px] text-[11px] sm:text-xs text-right tabular-nums text-f1-muted flex-shrink-0" title="Last lap time">
                     {drv.retired ? "" : (lastLapTime || "")}
                   </span>
                 );
@@ -358,7 +358,7 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
                 const color = isFastest ? "text-purple-400" : isPersonalBest ? "text-green-400" : "text-f1-muted";
 
                 return (
-                  <span className={`w-[50px] sm:w-[60px] flex-shrink-0 text-[11px] sm:text-xs text-right tabular-nums ${color}`} title="Last lap time">
+                  <span className={`w-[50px] sm:w-[60px] text-[11px] sm:text-xs text-right tabular-nums flex-shrink-0 ${color}`} title="Last lap time">
                     {lastLapTime}
                   </span>
                 );
@@ -500,5 +500,6 @@ function LeaderboardComponent({ drivers, highlightedDrivers, onDriverClick, sett
     </div>
   );
 }
-c o n s t   L e a d e r b o a r d   =   m e m o ( L e a d e r b o a r d C o m p o n e n t ) ;   e x p o r t   d e f a u l t   L e a d e r b o a r d ;  
- 
+
+const Leaderboard = memo(LeaderboardComponent);
+export default Leaderboard;
