@@ -32,6 +32,7 @@ def process_session_sync(
     session_type: str,
     skip_existing: bool = False,
     on_status: callable = None,
+    process_telemetry: bool = True,
 ) -> bool:
     """Process and upload all data for a single session. Returns True if successful.
 
@@ -95,9 +96,13 @@ def process_session_sync(
     except Exception as e:
         logger.warning(f"[{prefix}] No replay data: {e}")
 
+    if not process_telemetry:
+        status("Processing complete (telemetry skipped)")
+        return True
+
     status("Processing telemetry...")
 
-    # Telemetry per driver
+    # Telemetry per driver (THIS IS THE SLOWEST PART)
     try:
         drivers = info.get("drivers", [])
         total_laps_set = set()
@@ -107,14 +112,24 @@ def process_session_sync(
 
         for drv in drivers:
             abbr = drv["abbreviation"]
+            # Skip if already exists
+            if storage.exists(f"{base}/telemetry/{abbr}.json"):
+                continue
+                
             drv_telemetry = {}
+            # Limit telemetry processing to keep it within reasonable time
+            # Only process up to 100 laps per driver (usually enough for a GP)
+            processed_laps = 0
             for lap_num in sorted(total_laps_set):
+                if processed_laps > 100:
+                    break
                 try:
                     tel = _get_driver_telemetry_sync(
                         year, round_num, session_type, abbr, lap_num
                     )
                     if tel:
                         drv_telemetry[str(lap_num)] = tel
+                        processed_laps += 1
                 except Exception:
                     continue
             if drv_telemetry:
@@ -150,8 +165,19 @@ async def ensure_session_data(
     if key not in _locks:
         _locks[key] = asyncio.Lock()
 
+    # If already locked, wait but with a timeout to avoid hanging the HTTP request
+    if _locks[key].locked():
+        try:
+            # Wait up to 45s for existing task
+            await asyncio.wait_for(_locks[key].acquire(), timeout=45.0)
+            _locks[key].release()  # Immediately release after acquiring
+            return storage.exists(f"{base}/replay.json")
+        except asyncio.TimeoutError:
+            # Still processing, tell frontend to try again
+            return False
+
     async with _locks[key]:
-        # Double-check after acquiring lock (another request may have finished)
+        # Double-check after acquiring lock
         if storage.exists(f"{base}/replay.json"):
             return True
 
@@ -161,16 +187,36 @@ async def ensure_session_data(
         def sync_status(msg: str):
             status_messages.append(msg)
 
-        # Run processing in a thread
+        # Run primary processing in a thread with a timeout
+        # Primary processing = everything EXCEPT telemetry
         try:
-            success = await asyncio.to_thread(
+            # Wait up to 50s for primary processing
+            success = await asyncio.wait_for(
+                asyncio.to_thread(
+                    process_session_sync,
+                    year,
+                    round_num,
+                    session_type,
+                    on_status=sync_status,
+                    process_telemetry=False, # Skip telemetry for on-demand HTTP requests
+                ),
+                timeout=50.0
+            )
+            
+            # Start telemetry processing in background without waiting
+            asyncio.create_task(asyncio.to_thread(
                 process_session_sync,
                 year,
                 round_num,
                 session_type,
-                on_status=sync_status,
-            )
+                skip_existing=True,
+                process_telemetry=True,
+            ))
+            
             return success
+        except asyncio.TimeoutError:
+            logger.warning(f"Processing timeout for {key}, continuing in background")
+            return False
         except Exception as e:
             logger.error(f"On-demand processing failed for {key}: {e}")
             traceback.print_exc()
@@ -221,6 +267,7 @@ async def ensure_session_data_ws(
             session_type,
             False,
             sync_status,
+            False, # process_telemetry=False for initial load
         )
 
         # Forward status messages while processing
@@ -238,6 +285,16 @@ async def ensure_session_data_ws(
 
         try:
             success = process_task.result()
+            # Start telemetry in background
+            if success:
+                asyncio.create_task(asyncio.to_thread(
+                    process_session_sync,
+                    year,
+                    round_num,
+                    session_type,
+                    skip_existing=True,
+                    process_telemetry=True,
+                ))
             return success
         except Exception as e:
             logger.error(f"On-demand processing failed for {key}: {e}")
